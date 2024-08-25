@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>桌球發力訓練系統</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0px 30px;
+            height: 100%;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            display: flex;
+            height: 100%; 
+        }
+        .left-column {
+            width: 70%;
+            display: flex;
+            flex-direction: column;
+
+        }
+        .right-column {
+            width: 30%;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+        #myVideo {
+            width: 90%;
+            
+            max-height: 55%;
+        }
+        #myChartContainer {
+            height: 45%;
+	    width: 150%;
+        }
+        #myChart {
+            width: 100%;
+            height: 100%;
+        }
+        #timeSlider {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .button {
+            padding: 10px;
+            margin: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .file-input {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="left-column">
+            <video id="myVideo" controls>
+                Your browser does not support the video tag.
+            </video>
+            <div id="myChartContainer">
+                <canvas id="myChart"></canvas>
+            </div>
+        </div>
+        <div class="right-column">
+            <input type="file" id="videoFile" accept="video/mp4,video/quicktime" class="file-input">
+            <input type="file" id="dataFile" accept=".txt" class="file-input">
+            <input type="range" id="timeSlider" min="0" max="100" value="0">
+            <button id="startButton" class="button">開始</button>
+            <button id="pauseButton" class="button">暫停</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const ctx = document.getElementById('myChart').getContext('2d');
+        const myChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Sensor Data',
+display: false,
+                    data: [],
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                animation: false,
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Value'
+                        },
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        const video = document.getElementById('myVideo');
+        const timeSlider = document.getElementById('timeSlider');
+        const startButton = document.getElementById('startButton');
+        const pauseButton = document.getElementById('pauseButton');
+        const videoFile = document.getElementById('videoFile');
+        const dataFile = document.getElementById('dataFile');
+
+        let chartData = [];
+        let updateInterval;
+
+        videoFile.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const fileType = file.type;
+            
+            if (fileType !== 'video/mp4' && fileType !== 'video/quicktime') {
+                alert('請選擇 MP4 或 MOV 格式的影片檔案。');
+                return;
+            }
+
+            const fileURL = URL.createObjectURL(file);
+            video.src = fileURL;
+
+            if (fileType === 'video/mp4') {
+                video.type = 'video/mp4';
+            } else if (fileType === 'video/quicktime') {
+                video.type = 'video/quicktime';
+            }
+        });
+
+        dataFile.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const content = e.target.result;
+                chartData = parseDataFile(content);
+                updateChart(0);
+            };
+            reader.readAsText(file);
+        });
+
+        function parseDataFile(content) {
+            return content.split('\n').map(line => {
+                const [time, value] = line.trim().split(' ');
+                return { time, value: parseFloat(value) };
+            }).filter(item => !isNaN(item.value));
+        }
+
+        function updateChart(currentTime) {
+            const currentIndex = Math.floor(currentTime * 10);
+            const startIndex = Math.max(0, currentIndex - 29);
+            const endIndex = currentIndex;
+            
+            const displayData = chartData.slice(startIndex, endIndex + 1);
+
+            myChart.data.labels = displayData.map(item => item.time);
+            myChart.data.datasets[0].data = displayData.map(item => item.value);
+            myChart.update('none');
+        }
+
+        function startUpdate() {
+            updateInterval = setInterval(() => {
+                const currentTime = video.currentTime;
+                timeSlider.value = (currentTime / video.duration) * 100;
+                updateChart(currentTime);
+            }, 100);
+        }
+
+        function stopUpdate() {
+            clearInterval(updateInterval);
+        }
+
+        video.addEventListener('play', startUpdate);
+        video.addEventListener('pause', stopUpdate);
+
+        startButton.addEventListener('click', () => {
+            video.play();
+        });
+
+        pauseButton.addEventListener('click', () => {
+            video.pause();
+        });
+
+        timeSlider.addEventListener('input', () => {
+            const time = (timeSlider.value / 100) * video.duration;
+            video.currentTime = time;
+            updateChart(time);
+        });
+
+        video.addEventListener('loadedmetadata', () => {
+        });
+    </script>
+</body>
+</html>
