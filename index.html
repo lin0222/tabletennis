@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>桌球發力訓練系統</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0px 30px;
+            height: 100%;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            display: flex;
+            height: 100%; 
+            gap: 0px; 
+        }
+        .left-column {
+    	width: 65%; 
+   	 display: flex;
+   	 flex-direction: column;
+   	 align-items: flex-start; 
+   	 
+	}
+        .right-column {
+            width: 35%;
+            padding: 10px;  /* 將 padding 改為 10px，減少內邊距 */
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+        .file-input-container {
+            display: flex;
+            gap: 10px;  /* 兩個按鈕之間的距離 */
+        }
+        #myVideo {
+            width: 80%;
+            max-height: 55%;
+	    align-self: flex-end; 
+	    margin-right: 60px; 
+        }
+        #myChartContainer {
+            height: 45%;
+            width: 150%;
+	    margin-left: 80px; 
+        }
+        #myChart {
+            width: 100%;
+            height: 100%;
+        }
+        #timeSlider {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .button {
+            padding: 10px;
+            margin: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .file-input {
+            display: none;
+        }
+        .custom-label {
+            padding: 10px;
+            margin: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            display: inline-block;
+            text-align: center;
+        }
+        #results {
+            margin-top: 20px;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="left-column">
+            <video id="myVideo" controls>
+            </video>
+            <div id="myChartContainer">
+                <canvas id="myChart"></canvas>
+            </div>
+        </div>
+        <div class="right-column">
+            <div id="experimentTime" style="font-size: 18px; margin-bottom: 10px;"></div> 
+            <div id="results"></div>
+            <div class="file-input-container">
+                <!-- 將兩個按鈕放在同一個 div 中，並排顯示 -->
+                <div>
+                    <label for="videoFile" class="custom-label">選擇影片檔</label>
+                    <input type="file" id="videoFile" accept="video/mp4,video/quicktime" class="file-input">
+                    <div id="videoFileName" class="file-name"></div>
+                </div>
+                <div>
+                    <label for="dataFile" class="custom-label">選擇數據檔</label>
+                    <input type="file" id="dataFile" accept=".txt" class="file-input">
+                    <div id="dataFileName" class="file-name"></div>
+                </div>
+            </div>
+            <input type="range" id="timeSlider" min="0" max="100" value="0">
+            <button id="startButton" class="button">開始</button>
+            <button id="pauseButton" class="button">暫停</button>
+            <button id="hitButton" class="button">記錄擊球時間</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const ctx = document.getElementById('myChart').getContext('2d');
+        const myChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: [],
+        datasets: [{
+            label: 'Sensor Data',
+            data: [],
+            borderColor: 'rgba(75, 192, 192, 1)',
+            tension: 0.6
+        }]
+    },
+    options: {
+        animation: false,
+        scales: {
+            x: {
+                title: {
+                    display: true,
+                    text: 'Time'
+                },
+                ticks: {
+                    autoSkip: false, // 確保不跳過任何標籤
+                    //maxRotation: 0, // 確保標籤不旋轉
+                },
+                grid: {
+                    display: true, // 顯示 X 軸的網格線
+                    drawOnChartArea: true // 在圖表區域繪製網格線
+                }
+            },
+            y: {
+                title: {
+                    display: true,
+                    text: 'Value'
+                },
+                beginAtZero: true,
+                grid: {
+                    display: true // 可選，若希望 Y 軸也有網格線
+                }
+            }
+        }
+    }
+});
+
+        const video = document.getElementById('myVideo');
+        const timeSlider = document.getElementById('timeSlider');
+        const startButton = document.getElementById('startButton');
+        const pauseButton = document.getElementById('pauseButton');
+        const hitButton = document.getElementById('hitButton'); // 新增按鈕變數
+        const videoFile = document.getElementById('videoFile');
+        const dataFile = document.getElementById('dataFile');
+
+        let chartData = [];
+        let updateInterval;
+        let hitTimes = []; // 儲存擊球時間的陣列
+
+        videoFile.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const fileType = file.type;
+
+            if (fileType !== 'video/mp4' && fileType !== 'video/quicktime') {
+                alert('請選擇 MP4 或 MOV 格式的影片檔案。');
+                return;
+            }
+
+            const fileURL = URL.createObjectURL(file);
+            video.src = fileURL;
+
+            if (fileType === 'video/mp4') {
+                video.type = 'video/mp4';
+            } else if (fileType === 'video/quicktime') {
+                video.type = 'video/quicktime';
+            }
+        });
+
+        dataFile.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const content = e.target.result;
+                chartData = parseDataFile(content);
+                updateChart(0);
+            };
+            reader.readAsText(file);
+        });
+
+        function parseDataFile(content) {
+            let millisecondCounter = 1; // 新增計數器
+            return content.split('\n').map(line => {
+                const [time, value] = line.trim().split(' ');
+                const newTime = time.replace(/:\d{3}$/, '') + `:${millisecondCounter++ % 10}`; // 將毫秒變成 1-9 的數字
+                return { time: newTime, value: parseFloat(value) };
+            }).filter(item => !isNaN(item.value));
+        }
+
+        function updateChart(currentTime) {
+            const currentIndex = Math.floor(currentTime * 10);
+            const displayData = chartData.slice(Math.max(0, currentIndex - 29), currentIndex + 1);
+
+            myChart.data.labels = displayData.map(item => item.time);
+            myChart.data.datasets[0].data = displayData.map(item => item.value);
+            myChart.update('none');
+        }
+
+        function startUpdate() {
+            updateInterval = setInterval(() => {
+                const currentTime = video.currentTime;
+                timeSlider.value = (currentTime / video.duration) * 100;
+                updateChart(currentTime);
+            }, 100);
+        }
+
+        function stopUpdate() {
+            clearInterval(updateInterval);
+        }
+
+        video.addEventListener('play', startUpdate);
+        video.addEventListener('pause', stopUpdate);
+
+        startButton.addEventListener('click', () => {
+            video.play();
+        });
+
+        pauseButton.addEventListener('click', () => {
+            video.pause();
+        });
+
+        timeSlider.addEventListener('input', () => {
+            const time = (timeSlider.value / 100) * video.duration;
+            video.currentTime = time;
+            updateChart(time);
+        });
+
+        hitButton.addEventListener('click', () => { // 新增擊球按鈕的功能
+            const videoTime = video.currentTime;
+            const currentIndex = Math.floor(videoTime * 10);
+            const dataItem = chartData[currentIndex] || { time: "未知", value: "無數據" }; // 找到對應的數據時間和數值
+            
+            // 插入擊球時間並保持排序
+            hitTimes.push({ videoTime, dataTime: dataItem.time, dataValue: dataItem.value });
+            hitTimes.sort((a, b) => a.videoTime - b.videoTime);
+
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = ''; // 清空結果
+            hitTimes.forEach(hit => {
+                resultsDiv.innerHTML += `影片時間: ${hit.videoTime.toFixed(2)} 秒, 數據時間: ${hit.dataTime}, 數據數值: ${hit.dataValue} <br>`;
+            });
+        });
+    </script>
+</body>
+</html>
