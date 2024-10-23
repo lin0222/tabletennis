@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
@@ -17,33 +18,32 @@
             gap: 0px; 
         }
         .left-column {
-    	width: 65%; 
-   	 display: flex;
-   	 flex-direction: column;
-   	 align-items: flex-start; 
-   	 
-	}
+            width: 65%; 
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start; 
+        }
         .right-column {
             width: 35%;
-            padding: 10px;  /* 將 padding 改為 10px，減少內邊距 */
+            padding: 10px;  
             display: flex;
             flex-direction: column;
             justify-content: flex-end;
         }
         .file-input-container {
             display: flex;
-            gap: 10px;  /* 兩個按鈕之間的距離 */
+            gap: 10px;  
         }
         #myVideo {
             width: 80%;
             max-height: 55%;
-	    align-self: flex-end; 
-	    margin-right: 60px; 
+            align-self: flex-end; 
+            margin-right: 60px; 
         }
         #myChartContainer {
             height: 45%;
             width: 150%;
-	    margin-left: 80px; 
+            margin-left: 80px; 
         }
         #myChart {
             width: 100%;
@@ -92,7 +92,6 @@
             <div id="experimentTime" style="font-size: 18px; margin-bottom: 10px;"></div> 
             <div id="results"></div>
             <div class="file-input-container">
-                <!-- 將兩個按鈕放在同一個 div 中，並排顯示 -->
                 <div>
                     <label for="videoFile" class="custom-label">選擇影片檔</label>
                     <input type="file" id="videoFile" accept="video/mp4,video/quicktime" class="file-input">
@@ -103,6 +102,8 @@
                     <input type="file" id="dataFile" accept=".txt" class="file-input">
                     <div id="dataFileName" class="file-name"></div>
                 </div>
+                <!-- 新增按鈕 -->
+                <button id="deleteHitButton" class="button">刪除最新擊球時間</button>
             </div>
             <input type="range" id="timeSlider" min="0" max="100" value="0">
             <button id="startButton" class="button">開始</button>
@@ -114,59 +115,66 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         const ctx = document.getElementById('myChart').getContext('2d');
+        let hitTimes = []; 
+
         const myChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-        labels: [],
-        datasets: [{
-            label: 'Sensor Data',
-            data: [],
-            borderColor: 'rgba(75, 192, 192, 1)',
-            tension: 0.6
-        }]
-    },
-    options: {
-        animation: false,
-        scales: {
-            x: {
-                title: {
-                    display: true,
-                    text: 'Time'
-                },
-                ticks: {
-                    autoSkip: false, // 確保不跳過任何標籤
-                    //maxRotation: 0, // 確保標籤不旋轉
-                },
-                grid: {
-                    display: true, // 顯示 X 軸的網格線
-                    drawOnChartArea: true // 在圖表區域繪製網格線
-                }
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Sensor Data',
+                    data: [],
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    tension: 0.6,
+                    pointBackgroundColor: [], 
+                }]
             },
-            y: {
-                title: {
-                    display: true,
-                    text: 'Value'
-                },
-                beginAtZero: true,
-                grid: {
-                    display: true // 可選，若希望 Y 軸也有網格線
+            options: {
+                animation: false,
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time'
+                        },
+                        ticks: {
+                            autoSkip: false,
+                        },
+                        grid: {
+                            color: function(context) {
+                                // 如果時間點匹配擊球時間，則設置網格線為紅色
+                                const timeLabel = context.tick.label;
+                                const isHit = hitTimes.some(hit => hit.dataTime === timeLabel);
+                                return isHit ? 'red' : 'rgba(200, 200, 200, 0.8)';
+                            },
+                            drawOnChartArea: true
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Value'
+                        },
+                        beginAtZero: true,
+                        grid: {
+                            display: true
+                        }
+                    }
                 }
             }
-        }
-    }
-});
+        });
 
         const video = document.getElementById('myVideo');
         const timeSlider = document.getElementById('timeSlider');
         const startButton = document.getElementById('startButton');
         const pauseButton = document.getElementById('pauseButton');
-        const hitButton = document.getElementById('hitButton'); // 新增按鈕變數
+        const hitButton = document.getElementById('hitButton'); 
+        const deleteHitButton = document.getElementById('deleteHitButton'); // 刪除擊球時間按鈕
         const videoFile = document.getElementById('videoFile');
         const dataFile = document.getElementById('dataFile');
 
         let chartData = [];
         let updateInterval;
-        let hitTimes = []; // 儲存擊球時間的陣列
 
         videoFile.addEventListener('change', function(e) {
             const file = e.target.files[0];
@@ -198,14 +206,15 @@
             reader.readAsText(file);
         });
 
-        function parseDataFile(content) {
-            let millisecondCounter = 1; // 新增計數器
-            return content.split('\n').map(line => {
-                const [time, value] = line.trim().split(' ');
-                const newTime = time.replace(/:\d{3}$/, '') + `:${millisecondCounter++ % 10}`; // 將毫秒變成 1-9 的數字
-                return { time: newTime, value: parseFloat(value) };
-            }).filter(item => !isNaN(item.value));
-        }
+	function parseDataFile(content) {
+   	 let millisecondCounter = 1; 
+    	return content.split('\n').map(line => {
+    	    const [time, value] = line.trim().split(' ');
+     	   const newTime = time.replace(/:\d{3}$/, '') + `:${millisecondCounter++ % 10}`; 
+      	  return { time: newTime, value: parseFloat(value) };
+   	 }).filter(item => !isNaN(item.value));
+	}
+
 
         function updateChart(currentTime) {
             const currentIndex = Math.floor(currentTime * 10);
@@ -213,6 +222,12 @@
 
             myChart.data.labels = displayData.map(item => item.time);
             myChart.data.datasets[0].data = displayData.map(item => item.value);
+
+            myChart.data.datasets[0].pointBackgroundColor = displayData.map(item => {
+                const isHit = hitTimes.some(hit => hit.dataTime === item.time);
+                return isHit ? 'red' : 'rgba(75, 192, 192, 1)';
+            });
+
             myChart.update('none');
         }
 
@@ -245,20 +260,36 @@
             updateChart(time);
         });
 
-        hitButton.addEventListener('click', () => { // 新增擊球按鈕的功能
+        hitButton.addEventListener('click', () => { 
             const videoTime = video.currentTime;
-            const currentIndex = Math.floor(videoTime * 10);
-            const dataItem = chartData[currentIndex] || { time: "未知", value: "無數據" }; // 找到對應的數據時間和數值
-            
-            // 插入擊球時間並保持排序
+            const dataItem = chartData[Math.floor(videoTime * 10)];
+            if (!dataItem) return;
+
             hitTimes.push({ videoTime, dataTime: dataItem.time, dataValue: dataItem.value });
             hitTimes.sort((a, b) => a.videoTime - b.videoTime);
 
             const resultsDiv = document.getElementById('results');
-            resultsDiv.innerHTML = ''; // 清空結果
+            resultsDiv.innerHTML = ''; 
             hitTimes.forEach(hit => {
                 resultsDiv.innerHTML += `影片時間: ${hit.videoTime.toFixed(2)} 秒, 數據時間: ${hit.dataTime}, 數據數值: ${hit.dataValue} <br>`;
             });
+
+            updateChart(videoTime);
+        });
+
+        // 新增刪除擊球時間功能
+        deleteHitButton.addEventListener('click', () => {
+            if (hitTimes.length === 0) return; 
+
+            hitTimes.pop(); // 刪除最後一個記錄
+
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = ''; 
+            hitTimes.forEach(hit => {
+                resultsDiv.innerHTML += `影片時間: ${hit.videoTime.toFixed(2)} 秒, 數據時間: ${hit.dataTime}, 數據數值: ${hit.dataValue} <br>`;
+            });
+
+            updateChart(video.currentTime);
         });
     </script>
 </body>
