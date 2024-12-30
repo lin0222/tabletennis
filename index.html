@@ -200,16 +200,16 @@
         });
 
         function parseDataFile(content) {
-    return content.split('\n').map(line => {
-        const [time, value] = line.trim().split(' ');
+            let millisecondCounter = 0;
+            return content.split('\n').map(line => {
+                const [time, value] = line.trim().split(' ');
+                
+                // 格式化時間戳，分:秒:毫秒（三位數）
+                const [minutes, seconds , millisecond] = time.split(':');
+               // const newTime = `${minutes}:${seconds}:${millisecondCounter.toString().padStart(3, '0')}`;
 
-        // 假設檔案中的時間戳格式為 mm:ss:SSS，直接使用這個時間戳
-        if (!time || isNaN(value)) return null;
-
-        return { time: time, value: parseFloat(value) };
-    }).filter(item => item !== null); // 只保留有效的項目
-}
-
+            }).filter(item => !isNaN(item.value));
+        }
 
         function updateChart(currentTime) {
             const currentIndex = Math.floor(currentTime * 100);
