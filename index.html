@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
@@ -101,7 +102,6 @@
                     <input type="file" id="dataFile" accept=".txt" class="file-input">
                     <div id="dataFileName" class="file-name"></div>
                 </div>
-                <!-- 新增按鈕 -->
                 <button id="deleteHitButton" class="button">刪除最新擊球時間</button>
             </div>
             <input type="range" id="timeSlider" min="0" max="100" value="0">
@@ -141,7 +141,6 @@
                         },
                         grid: {
                             color: function(context) {
-                                // 如果時間點匹配擊球時間，則設置網格線為紅色
                                 const timeLabel = context.tick.label;
                                 const isHit = hitTimes.some(hit => hit.dataTime === timeLabel);
                                 return isHit ? 'red' : 'rgba(200, 200, 200, 0.8)';
@@ -168,7 +167,7 @@
         const startButton = document.getElementById('startButton');
         const pauseButton = document.getElementById('pauseButton');
         const hitButton = document.getElementById('hitButton'); 
-        const deleteHitButton = document.getElementById('deleteHitButton'); // 刪除擊球時間按鈕
+        const deleteHitButton = document.getElementById('deleteHitButton'); 
         const videoFile = document.getElementById('videoFile');
         const dataFile = document.getElementById('dataFile');
 
@@ -186,12 +185,7 @@
 
             const fileURL = URL.createObjectURL(file);
             video.src = fileURL;
-
-            if (fileType === 'video/mp4') {
-                video.type = 'video/mp4';
-            } else if (fileType === 'video/quicktime') {
-                video.type = 'video/quicktime';
-            }
+            video.type = fileType;
         });
 
         dataFile.addEventListener('change', function(e) {
@@ -205,19 +199,21 @@
             reader.readAsText(file);
         });
 
-	function parseDataFile(content) {
-   	 let millisecondCounter = 1; 
-    	return content.split('\n').map(line => {
-    	    const [time, value] = line.trim().split(' ');
-     	   const newTime = time.replace(/:\d{3}$/, '') + `:${millisecondCounter++ % 10}`; 
-      	  return { time: newTime, value: parseFloat(value) };
-   	 }).filter(item => !isNaN(item.value));
-	}
+        function parseDataFile(content) {
+    return content.split('\n').map(line => {
+        const [time, value] = line.trim().split(' ');
+
+        // 假設檔案中的時間戳格式為 mm:ss:SSS，直接使用這個時間戳
+        if (!time || isNaN(value)) return null;
+
+        return { time: time, value: parseFloat(value) };
+    }).filter(item => item !== null); // 只保留有效的項目
+}
 
 
         function updateChart(currentTime) {
-            const currentIndex = Math.floor(currentTime * 10);
-            const displayData = chartData.slice(Math.max(0, currentIndex - 29), currentIndex + 1);
+            const currentIndex = Math.floor(currentTime * 100);
+            const displayData = chartData.slice(Math.max(0, currentIndex - 49), currentIndex + 1);
 
             myChart.data.labels = displayData.map(item => item.time);
             myChart.data.datasets[0].data = displayData.map(item => item.value);
@@ -261,7 +257,7 @@
 
         hitButton.addEventListener('click', () => { 
             const videoTime = video.currentTime;
-            const dataItem = chartData[Math.floor(videoTime * 10)];
+            const dataItem = chartData[Math.floor(videoTime * 100)];
             if (!dataItem) return;
 
             hitTimes.push({ videoTime, dataTime: dataItem.time, dataValue: dataItem.value });
@@ -276,11 +272,10 @@
             updateChart(videoTime);
         });
 
-        // 新增刪除擊球時間功能
         deleteHitButton.addEventListener('click', () => {
             if (hitTimes.length === 0) return; 
 
-            hitTimes.pop(); // 刪除最後一個記錄
+            hitTimes.pop();
 
             const resultsDiv = document.getElementById('results');
             resultsDiv.innerHTML = ''; 
